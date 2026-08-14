@@ -128,13 +128,12 @@ keep `trash_dir` set until you trust it.
 ## Support
 
 vtrans is free and always will be. If it saved you a weekend or a few
-terabytes, you can say thanks here:
+terabytes, you can say thanks through
+[GitHub Sponsors](https://github.com/sponsors/CHANGEME).
 
-<!-- Replace with your own links before publishing. -->
-- GitHub Sponsors: https://github.com/sponsors/CHANGEME
-- Buy Me a Coffee: https://buymeacoffee.com/CHANGEME
-
-No feature is behind a payment, and none ever will be.
+No feature is behind a payment, and none ever will be. Bug reports and hardware
+you can test on are worth more than money anyway — particularly NVIDIA, which
+nobody has been able to try yet.
 
 ## License
 
