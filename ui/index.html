@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vtrans</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎞️</text></svg>">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <span class="logo">▶</span>
+    <div>
+      <h1>vtrans</h1>
+      <p class="sub">AV1 hardware-accelerated archiving</p>
+    </div>
+  </div>
+  <div class="live" id="live">
+    <span class="dot" id="live-dot"></span>
+    <span id="live-text">connecting…</span>
+  </div>
+</header>
+
+<div id="notices" class="notices" hidden></div>
+
+<nav class="tabs" role="tablist">
+  <button class="tab is-active" data-tab="status" role="tab">Status</button>
+  <button class="tab" data-tab="library" role="tab">Library</button>
+  <button class="tab" data-tab="queue" role="tab">Queue <span class="badge" id="badge-queue"></span></button>
+  <button class="tab" data-tab="history" role="tab">History</button>
+  <button class="tab" data-tab="failures" role="tab">Failures <span class="badge warn" id="badge-failed"></span></button>
+  <button class="tab" data-tab="ignored" role="tab">Ignored <span class="badge" id="badge-ignored"></span></button>
+  <button class="tab" data-tab="doctor" role="tab">Doctor <span class="badge warn" id="badge-doctor"></span></button>
+  <button class="tab" data-tab="logs" role="tab">Logs</button>
+  <button class="tab" data-tab="settings" role="tab">Settings</button>
+</nav>
+
+<main>
+
+<!-- STATUS -->
+<section class="panel is-active" id="panel-status">
+
+  <div class="card current" id="current-card">
+    <div class="current-idle" id="current-idle">
+      <p class="idle-title" id="idle-title">Nothing in progress</p>
+      <p class="idle-sub" id="idle-sub">If the service is running it will pick up the next file on its own.</p>
+    </div>
+
+    <div class="current-active" id="current-active" hidden>
+      <div class="cur-head">
+        <span class="phase" id="cur-phase">encode</span>
+        <span class="cur-pos" id="cur-pos"></span>
+      </div>
+      <h2 class="cur-name" id="cur-name"></h2>
+      <div class="bar"><div class="bar-fill" id="cur-bar"></div></div>
+      <div class="cur-stats">
+        <div><span class="k">progress</span><span class="v" id="cur-pct">—</span></div>
+        <div><span class="k">speed</span><span class="v" id="cur-speed">—</span></div>
+        <div><span class="k">fps</span><span class="v" id="cur-fps">—</span></div>
+        <div><span class="k">eta</span><span class="v" id="cur-eta">—</span></div>
+        <div><span class="k">source</span><span class="v" id="cur-size">—</span></div>
+        <div><span class="k">elapsed</span><span class="v" id="cur-elapsed">—</span></div>
+      </div>
+      <p class="session" id="cur-session"></p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-k">Completed</span>
+      <span class="stat-v" id="s-files">—</span>
+      <span class="stat-n" id="s-replaced"></span>
+    </div>
+    <div class="stat accent">
+      <span class="stat-k">Space saved</span>
+      <span class="stat-v" id="s-saved">—</span>
+      <span class="stat-n" id="s-ratio"></span>
+    </div>
+    <div class="stat">
+      <span class="stat-k">Queue</span>
+      <span class="stat-v" id="s-queue">—</span>
+      <span class="stat-n" id="s-queue-size"></span>
+    </div>
+    <div class="stat">
+      <span class="stat-k">Skipped</span>
+      <span class="stat-v" id="s-skipped">—</span>
+      <span class="stat-n" id="s-skipped-n"></span>
+    </div>
+    <div class="stat">
+      <span class="stat-k">Trash</span>
+      <span class="stat-v" id="s-trash">—</span>
+      <span class="stat-n" id="s-trash-files"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3>Trash</h3>
+      <button class="btn danger" id="btn-trash">Empty</button>
+    </div>
+    <p class="muted" id="trash-desc">
+      In replace mode the originals that were swapped out wait here. Space is
+      only reclaimed once it is emptied - check a few outputs by eye first.
+    </p>
+  </div>
+
+</section>
+
+<!-- LIBRARY -->
+<section class="panel" id="panel-library">
+  <div class="card">
+    <div class="card-head">
+      <h3>Library</h3>
+      <div class="log-tools">
+        <input type="search" id="lib-search" class="search" placeholder="search…">
+        <select id="lib-state">
+          <option value="">every state</option>
+          <option value="done">done</option>
+          <option value="queued">queued</option>
+          <option value="failed">failed</option>
+          <option value="ignored">ignored</option>
+          <option value="skipped">outside the rules</option>
+        </select>
+        <select id="lib-codec"><option value="">every codec</option></select>
+        <select id="lib-sort">
+          <option value="name">by name</option>
+          <option value="size">by size</option>
+        </select>
+      </div>
+    </div>
+    <p class="muted" id="lib-summary">loading…</p>
+    <div class="grid" id="lib-grid"></div>
+    <button class="btn ghost" id="lib-more" hidden>Load more</button>
+  </div>
+</section>
+
+<!-- QUEUE -->
+<section class="panel" id="panel-queue">
+  <div class="card">
+    <div class="card-head">
+      <h3>Waiting to be processed</h3>
+      <input type="search" id="q-search" class="search" placeholder="search file name…">
+    </div>
+    <p class="muted" id="q-summary">loading…</p>
+    <div class="table-wrap">
+      <table class="tbl" id="q-table">
+        <thead><tr>
+          <th>File</th><th>Codec</th><th>Resolution</th>
+          <th class="num">Size</th><th class="num">Estimate</th><th class="num">Saving</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button class="btn ghost" id="q-more" hidden>Load more</button>
+  </div>
+</section>
+
+<!-- HISTORY -->
+<section class="panel" id="panel-history">
+  <div class="card">
+    <div class="card-head"><h3>Completed</h3></div>
+    <div class="table-wrap">
+      <table class="tbl" id="d-table">
+        <thead><tr>
+          <th>File</th><th class="num">Before</th><th class="num">After</th>
+          <th class="num">Saved</th><th>When</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- FAILURES -->
+<section class="panel" id="panel-failures">
+  <div class="card">
+    <div class="card-head">
+      <h3>Failed files</h3>
+      <button class="btn ghost" id="btn-clear-failed">Clear all</button>
+    </div>
+    <p class="muted">
+      These files are not tried again and are not counted in the queue. Retry
+      puts one back; Ignore moves it to the ignore list, where it stays out of
+      the way for good. "insufficient saving" is not a failure: it means the
+      file is already efficient enough.
+    </p>
+    <div class="list" id="f-list"></div>
+  </div>
+</section>
+
+<!-- IGNORED -->
+<section class="panel" id="panel-ignored">
+  <div class="card">
+    <div class="card-head">
+      <h3>Ignored files</h3>
+      <button class="btn ghost" id="btn-clear-ignored">Clear all</button>
+    </div>
+    <p class="muted">
+      These are left out of the queue entirely. vtrans adds a file here itself
+      when it would refuse it on every run (streams that cannot be written);
+      anything else here was put there by hand. Un-ignore returns a file to the
+      queue.
+    </p>
+    <div class="list" id="i-list"></div>
+  </div>
+</section>
+
+<!-- DOCTOR -->
+<section class="panel" id="panel-doctor">
+  <div class="card">
+    <div class="card-head">
+      <h3>Library health</h3>
+      <div class="log-tools">
+        <button class="btn primary" id="doc-scan">Scan library</button>
+        <button class="btn ghost" id="doc-stop" hidden>Stop</button>
+      </div>
+    </div>
+    <p class="muted" id="doc-note">
+      Reads every file in the index with ffprobe and lists the ones with a real
+      problem. It only reads - nothing is changed. Files already processed are
+      checked too, so problems show up even where nothing else would look.
+      Ordinary observations (already AV1, cover art) are left out here; use
+      Diagnose on a single file to see everything about it.
+    </p>
+    <div class="bar" id="doc-bar-wrap" hidden><div class="bar-fill" id="doc-bar"></div></div>
+    <p class="muted" id="doc-progress" hidden></p>
+    <div class="list" id="doc-list"></div>
+  </div>
+</section>
+
+<!-- LOGS -->
+<section class="panel" id="panel-logs">
+  <div class="card">
+    <div class="card-head">
+      <h3>Service log</h3>
+      <div class="log-tools">
+        <input type="search" id="log-search" class="search" placeholder="filter…">
+        <label class="check inline">
+          <input type="checkbox" id="log-follow" checked>
+          <span>Follow</span>
+        </label>
+        <select id="log-lines">
+          <option value="200">last 200</option>
+          <option value="500" selected>last 500</option>
+          <option value="2000">last 2000</option>
+        </select>
+      </div>
+    </div>
+    <p class="muted" id="log-meta">loading…</p>
+    <pre class="logbox" id="log-box"></pre>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section class="panel" id="panel-settings">
+  <form class="card" id="cfg-form">
+    <div class="card-head">
+      <h3>Configuration</h3>
+      <code class="muted" id="cfg-path"></code>
+    </div>
+
+    <p class="note" id="cfg-note">
+      Changes do not affect a job already in flight; they take effect from the
+      next file onwards.
+    </p>
+
+    <fieldset>
+      <legend>Library</legend>
+      <label>
+        <span>Roots <small>one directory per line</small></span>
+        <textarea id="c-roots" rows="2" spellcheck="false"></textarea>
+      </label>
+      <div class="row">
+        <label>
+          <span>Mode</span>
+          <select id="c-mode">
+            <option value="replace">replace — swap out the original</option>
+            <option value="copy">copy — keep the original</option>
+          </select>
+        </label>
+        <label>
+          <span>Output root <small>copy mode</small></span>
+          <input id="c-dest" spellcheck="false">
+        </label>
+      </div>
+      <label>
+        <span>Trash directory <small>empty = delete originals outright</small></span>
+        <input id="c-trash" spellcheck="false">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Quality</legend>
+      <div class="row">
+        <label>
+          <span>Movie quality <small>higher = smaller file</small></span>
+          <input type="number" id="c-qmovie" min="1" max="255">
+        </label>
+        <label>
+          <span>TV quality</span>
+          <input type="number" id="c-qtv" min="1" max="255">
+        </label>
+      </div>
+      <div class="row">
+        <label>
+          <span>Movie max width <small>0 = no downscale</small></span>
+          <input type="number" id="c-mw" min="0">
+        </label>
+        <label>
+          <span>TV max width</span>
+          <input type="number" id="c-tw" min="0">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Audio</legend>
+      <div class="row">
+        <label>
+          <span>Audio mode</span>
+          <select id="c-audio">
+            <option value="opus">opus — re-encode</option>
+            <option value="copy">copy — as-is</option>
+            <option value="none">none — drop audio</option>
+          </select>
+        </label>
+        <label>
+          <span>Opus stereo kbps <small>5.1 gets twice this</small></span>
+          <input type="number" id="c-opus" min="8" max="512">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Selection thresholds</legend>
+      <div class="row">
+        <label>
+          <span>Minimum bitrate <small>Mbps, anything below is skipped</small></span>
+          <input type="number" id="c-minbr" step="0.1" min="0">
+        </label>
+        <label>
+          <span>Minimum saving <small>0-1, output is rejected below this</small></span>
+          <input type="number" id="c-minsave" step="0.05" min="0" max="0.95">
+        </label>
+      </div>
+      <label>
+        <span>Codecs to skip <small>comma separated</small></span>
+        <input id="c-skip" spellcheck="false">
+      </label>
+      <label>
+        <span>TV path markers <small>comma separated; a path containing these counts as TV</small></span>
+        <input id="c-tvmark" spellcheck="false">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Verification and hardware</legend>
+      <div class="row">
+        <label>
+          <span>Verification</span>
+          <select id="c-verify">
+            <option value="sample">sample — start/middle/end</option>
+            <option value="full">full — everything (slow)</option>
+          </select>
+        </label>
+        <label>
+          <span>Duration tolerance <small>seconds</small></span>
+          <input type="number" id="c-tol" step="0.5" min="0">
+        </label>
+      </div>
+      <div class="row">
+        <label>
+          <span>Render device</span>
+          <input id="c-render" spellcheck="false">
+        </label>
+        <label class="check">
+          <input type="checkbox" id="c-streamloss">
+          <span>Skip files at risk of stream loss <small>recommended</small></span>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Watching <small>vtrans watch</small></legend>
+      <div class="row">
+        <label>
+          <span>Settle time <small>seconds</small></span>
+          <input type="number" id="c-stable" min="1">
+        </label>
+        <label>
+          <span>Rescan interval <small>minutes, 0 = off</small></span>
+          <input type="number" id="c-rescan" min="0">
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="form-foot">
+      <button type="submit" class="btn primary">Save</button>
+      <button type="button" class="btn ghost" id="cfg-reset">Revert</button>
+      <span class="form-msg" id="cfg-msg"></span>
+    </div>
+  </form>
+</section>
+
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

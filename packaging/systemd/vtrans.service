@@ -1,0 +1,78 @@
+[Unit]
+Description=vtrans video archiving (continuous background)
+After=network-online.target
+Wants=network-online.target
+# The library lives on NFS/autofs.
+#
+# RequiresMountsFor is DELIBERATELY not used: it produces a hard
+# Requires=...mount dependency, while fstab carries x-systemd.idle-timeout.
+# When the mount tried to shut itself down after a minute, that dependency
+# stopped this service too - it happened 80 seconds into an encode on
+# 2026-08-08. systemd then tried to unmount while vtrans was still writing to
+# that mount; the process went into D-state on NFS and did not even answer
+# SIGKILL for 20 minutes.
+#
+# The automount unit is always active and the first access triggers the mount
+# while blocking the caller, so there is no risk of seeing an empty directory.
+# After= only guarantees ordering and produces no stop propagation.
+After=home-CHANGEME-videos.automount
+
+# If failures are persistent (e.g. a half-finished replace is tripping
+# checkRecovery) we do not want systemd to give up on the service entirely:
+# let it keep trying at 10 minute intervals so the state is visible via
+# "systemctl status". This key belongs in the [Unit] section - inside
+# [Service] it is silently ignored.
+StartLimitIntervalSec=0
+
+[Service]
+# Type=simple rather than Type=oneshot: a permanent background service needs
+# Restart=, and systemd does not accept that with oneshot. Because only one
+# ExecStart is allowed, the scan moved to ExecStartPre.
+Type=simple
+User=CHANGEME
+Group=CHANGEME
+WorkingDirectory=/home/CHANGEME
+
+KillSignal=SIGTERM
+TimeoutStopSec=5min
+
+ExecStartPre=/usr/local/bin/vtrans scan
+ExecStart=/usr/local/bin/vtrans run
+
+# vtrans exits zero once the queue is drained; Restart=always brings it back so
+# ExecStartPre picks up new files. RestartSec keeps an empty queue from spinning
+# in a tight loop. A crash or a transient NFS error recovers the same way, which
+# is why this is always rather than on-failure.
+Restart=always
+RestartSec=10min
+
+# Nearly all of the memory usage is page cache from NFS reads and writes
+# (measured: 8.5G of 8.6G was "file", anon only 84M). It is reclaimable, so not
+# dangerous - but left unbounded it pushes the user's working set out of the
+# page cache. MemoryHigh is a soft limit: exceeding it makes the kernel reclaim
+# and throttle the service rather than killing it the way MemoryMax would.
+MemoryHigh=4G
+
+# If memory gets tight, this service should die first. In the past the OOM
+# killer took out the user's session and the editor they were working in.
+OOMScoreAdjust=500
+
+# Keep it from drowning out interactive use.
+Nice=10
+CPUWeight=20
+IOWeight=20
+IOSchedulingClass=idle
+
+# It has no need to write outside the library and its own state.
+ProtectSystem=strict
+ReadWritePaths=/home/CHANGEME/videos /home/CHANGEME/.local/state/vtrans /home/CHANGEME/.config/vtrans
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+# This is now a continuously running service: it starts at boot and is not
+# driven by a timer.
+WantedBy=multi-user.target

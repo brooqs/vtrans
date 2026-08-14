@@ -1,0 +1,10 @@
+# Built binary (the module name matches the directory, so `go build` drops it here)
+/vtrans
+/dist/
+
+# Local editor and OS noise
+.DS_Store
+*.swp
+
+# Local tooling scratch
+.gstack/

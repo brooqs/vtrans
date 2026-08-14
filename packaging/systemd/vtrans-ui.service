@@ -1,0 +1,35 @@
+[Unit]
+Description=vtrans web interface
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGEME
+Group=CHANGEME
+WorkingDirectory=/home/CHANGEME
+
+# Listens on all interfaces: the user wanted to open it from other machines on
+# the network too. There is no authentication - if this ever faces an untrusted
+# network, add --token <key>.
+ExecStart=/usr/local/bin/vtrans serve --addr :7654
+
+Restart=always
+RestartSec=5s
+
+# The interface only reads state and writes configuration; it never touches the
+# library. Emptying the trash aside, the configuration file is the only thing it
+# writes.
+ProtectSystem=strict
+ReadWritePaths=/home/CHANGEME/.config/vtrans /home/CHANGEME/.local/state/vtrans /home/CHANGEME/videos
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+
+# The interface should die before the working side does, not the other way round.
+OOMScoreAdjust=600
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
