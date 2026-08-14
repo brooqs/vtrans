@@ -1,4 +1,4 @@
-module vtrans
+module github.com/brooqs/vtrans
 
 go 1.25.0
 
