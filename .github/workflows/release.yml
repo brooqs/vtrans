@@ -1,0 +1,34 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # GoReleaser builds the changelog from the commit history, so it needs
+          # the whole thing rather than a shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SSH key registered with an AUR account. Without it the AUR step
+          # fails and takes the release with it, so publish without the aurs
+          # block until the secret exists.
+          AUR_KEY: ${{ secrets.AUR_KEY }}

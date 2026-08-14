@@ -16,7 +16,16 @@ import (
 	"time"
 )
 
-const usage = `vtrans - AMD VCN hardware-accelerated video archiving
+// Build information, filled in at link time by GoReleaser. The defaults are
+// what a plain "go build" produces, which is the honest answer for a binary
+// built outside a release.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+const usage = `vtrans - VAAPI hardware-accelerated video archiving
 
   vtrans scan              Scan the library / refresh the index
   vtrans plan              Show what would happen (writes nothing)
@@ -27,6 +36,7 @@ const usage = `vtrans - AMD VCN hardware-accelerated video archiving
   vtrans serve             Web interface (all interfaces, :7654)
   vtrans trash             Trash status (--empty to empty it)
   vtrans config            Show / edit the configuration
+  vtrans version           Build version
 
 Configuration: ~/.config/vtrans/config.json
 `
@@ -65,6 +75,9 @@ func main() {
 		err = cmdTrash(cfg, args)
 	case "config":
 		err = cmdConfig(cfg, args)
+	case "version", "--version", "-v":
+		fmt.Printf("vtrans %s (%s, built %s)\n", version, commit, date)
+		return
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 		return

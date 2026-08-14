@@ -58,13 +58,18 @@ nothing is written into your library.
 ## Requirements
 
 - **Linux** with a **VAAPI** device (`/dev/dri/renderD128`) that can encode AV1.
-  In practice: Intel Arc or an Intel iGPU from Meteor Lake onwards, or a recent
-  AMD card. `vainfo` should list `VAProfileAV1Profile0: VAEntrypointEncSlice`.
+  Check with `vainfo`: you want `VAProfileAV1Profile0: VAEntrypointEncSlice` in
+  the output. In practice that means AMD RDNA3 or newer, Intel Arc, or an Intel
+  iGPU from Meteor Lake onwards.
 - **ffmpeg 7+** with VAAPI support, on `PATH`.
 - Go 1.25+ to build.
 
+Developed and measured on an **AMD Radeon 890M** (Strix, RDNA 3.5) with Mesa
+26.0. Other VAAPI hardware should work but has not been tried — reports
+welcome.
+
 **NVIDIA is not supported.** vtrans speaks VAAPI only. NVENC support would be a
-welcome contribution.
+welcome contribution; the hardware-specific code is confined to six files.
 
 ## Install
 

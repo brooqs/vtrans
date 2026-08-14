@@ -1,0 +1,132 @@
+version: 2
+
+project_name: vtrans
+
+# GoReleaser picks its forge from whichever token it finds in the environment,
+# not from the git remote. A machine that also works on GitLab projects has
+# GITLAB_TOKEN set, and without this the AUR PKGBUILD is generated with source
+# URLs pointing at gitlab.com. Naming the forge makes the result the same
+# everywhere.
+force_token: github
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: vtrans
+    main: .
+    binary: vtrans
+    env:
+      # No cgo anywhere in the tree, and a static binary is what makes "copy it
+      # and run it" true across distributions.
+      - CGO_ENABLED=0
+    # Linux only, and deliberately so: vtrans drives VAAPI through /dev/dri.
+    # There is nothing for it to do on macOS or Windows, and shipping a binary
+    # that cannot work is worse than shipping none.
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+
+archives:
+  - id: vtrans
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      - packaging/systemd/*
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - id: vtrans
+    package_name: vtrans
+    vendor: Davuthan Yaman
+    homepage: https://github.com/brooqs/vtrans
+    maintainer: Davuthan Yaman <brooqs@gmail.com>
+    description: |-
+      AV1 hardware archiving for a video library, with a web interface.
+      Re-encodes over VAAPI, verifies every output before replacing an
+      original, and explains what it found.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    # ffmpeg is called as a separate process, so it is a real runtime
+    # requirement rather than something linked in.
+    dependencies:
+      - ffmpeg
+    bindir: /usr/local/bin
+    contents:
+      - src: packaging/systemd/vtrans.service
+        dst: /usr/share/vtrans/systemd/vtrans.service
+        type: config
+      - src: packaging/systemd/vtrans-ui.service
+        dst: /usr/share/vtrans/systemd/vtrans-ui.service
+        type: config
+      # Not installed straight into /etc/systemd/system: both units need a
+      # username filled in before they will start, so leaving them as examples
+      # is the honest packaging.
+      - src: README.md
+        dst: /usr/share/doc/vtrans/README.md
+
+aurs:
+  - name: vtrans-bin
+    homepage: https://github.com/brooqs/vtrans
+    description: AV1 hardware archiving for a video library, with a web interface
+    maintainers:
+      - Davuthan Yaman <brooqs@gmail.com>
+    license: MIT
+    private_key: '{{ .Env.AUR_KEY }}'
+    git_url: ssh://aur@aur.archlinux.org/vtrans-bin.git
+    depends:
+      - ffmpeg
+    optdepends:
+      - 'libva-utils: to check AV1 encode support with vainfo'
+    provides:
+      - vtrans
+    conflicts:
+      - vtrans
+    package: |-
+      install -Dm755 "./vtrans" "${pkgdir}/usr/bin/vtrans"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/vtrans/LICENSE"
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/vtrans/README.md"
+      install -Dm644 "./packaging/systemd/vtrans.service" \
+        "${pkgdir}/usr/share/vtrans/systemd/vtrans.service"
+      install -Dm644 "./packaging/systemd/vtrans-ui.service" \
+        "${pkgdir}/usr/share/vtrans/systemd/vtrans-ui.service"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  # Pinned rather than inferred. GoReleaser picks GitLab whenever GITLAB_TOKEN
+  # is set in the environment, whatever the git remote says, and the AUR
+  # PKGBUILD then points its source URLs at gitlab.com. Naming the host here
+  # makes a local snapshot and a CI build agree.
+  github:
+    owner: brooqs
+    name: vtrans
+  footer: |-
+    ---
+
+    Built on AMD RDNA 3.5 (Radeon 890M). Other VAAPI hardware should work but
+    has not been tested — reports are welcome.
