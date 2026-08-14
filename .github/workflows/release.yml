@@ -27,8 +27,8 @@ jobs:
           version: '~> v2'
           args: release --clean
         env:
+          # The only credential this workflow needs. There is deliberately no
+          # AUR key: the PKGBUILD is attached to the release rather than pushed
+          # to aur.archlinux.org, so nothing here can publish code on the
+          # maintainer's behalf. See the aurs block in .goreleaser.yaml.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # SSH key registered with an AUR account. Without it the AUR step
-          # fails and takes the release with it, so publish without the aurs
-          # block until the secret exists.
-          AUR_KEY: ${{ secrets.AUR_KEY }}

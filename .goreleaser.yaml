@@ -88,8 +88,23 @@ aurs:
     maintainers:
       - Davuthan Yaman <brooqs@gmail.com>
     license: MIT
-    private_key: '{{ .Env.AUR_KEY }}'
-    git_url: ssh://aur@aur.archlinux.org/vtrans-bin.git
+
+    # The PKGBUILD is generated and published as a release asset, not pushed to
+    # aur.archlinux.org.
+    #
+    # Publishing to the AUR would mean keeping an SSH key with push rights in
+    # CI. A PKGBUILD runs arbitrary code on the machine that builds it, so that
+    # one secret is enough to ship malicious code to everyone who installs the
+    # package - a credential worth stealing, sitting in a place that gets
+    # breached. Attaching the file to the release instead removes the secret
+    # entirely, and the checksums in it are the ones from this build.
+    #
+    # The cost is real: Arch users do not get `yay -S vtrans-bin`, and have to
+    # fetch the PKGBUILD by hand. See the README.
+    skip_upload: true
+    private_key: unused-see-skip_upload
+    git_url: unused-see-skip_upload
+
     depends:
       - ffmpeg
     optdepends:
@@ -125,6 +140,11 @@ release:
   github:
     owner: brooqs
     name: vtrans
+  # The AUR files are built by the aurs step but not pushed anywhere, so they
+  # have to be attached here to be of any use.
+  extra_files:
+    - glob: ./dist/aur/*.pkgbuild
+    - glob: ./dist/aur/*.srcinfo
   footer: |-
     ---
 

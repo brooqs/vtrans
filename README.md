@@ -73,6 +73,38 @@ welcome contribution; the hardware-specific code is confined to six files.
 
 ## Install
 
+Every release carries a `.tar.gz`, a `.deb` and an `.rpm` for amd64 and arm64,
+plus a `checksums.txt`.
+
+```sh
+# Debian / Ubuntu
+sudo apt install ./vtrans_<version>_linux_amd64.deb
+
+# Fedora / RHEL
+sudo dnf install ./vtrans_<version>_linux_amd64.rpm
+
+# Anything else
+tar xzf vtrans_<version>_linux_amd64.tar.gz
+sudo install -m755 vtrans /usr/local/bin/vtrans
+```
+
+### Arch Linux
+
+**vtrans is deliberately not in the AUR.** Publishing there means keeping an
+SSH key with push rights in CI, and a PKGBUILD runs arbitrary code on every
+machine that builds it — one stolen secret would be enough to ship malicious
+code to every user. The PKGBUILD is attached to each release instead:
+
+```sh
+curl -LO https://github.com/brooqs/vtrans/releases/latest/download/vtrans-bin.pkgbuild
+mv vtrans-bin.pkgbuild PKGBUILD
+makepkg -si
+```
+
+Read it before you run it. That goes for any PKGBUILD, including this one.
+
+### From source
+
 ```sh
 go build -o vtrans .
 sudo install -m755 vtrans /usr/local/bin/vtrans
