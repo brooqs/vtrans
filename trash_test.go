@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func trashFixture(t *testing.T) (*Config, string) {
@@ -101,5 +103,32 @@ func TestRestoreRefusesForeignFileAndOutsidePaths(t *testing.T) {
 	}
 	if err := DeleteFromTrash(cfg, cfg.TrashDir); err == nil {
 		t.Error("the trash directory itself is not a file to delete")
+	}
+}
+
+// Restore must work while the service runs: the service holds the run lock
+// for the whole batch, so gating on the lock would mean never. Only the file
+// the worker is on right now is off limits.
+func TestTrashBusyOnlyForTheCurrentFile(t *testing.T) {
+	cfg, root := trashFixture(t)
+	cur := filepath.Join(root, "movies", "Now.mkv")
+	other := filepath.Join(root, "movies", "Other.mkv")
+	st := &RunState{PID: os.Getpid(), Updated: time.Now(), Phase: "encode", Current: cur}
+	data, _ := json.Marshal(st)
+	if err := os.WriteFile(runStatePath(), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, busy := trashBusy(cfg, trashPathFor(cfg, cur)); !busy {
+		t.Error("the file being encoded must be reported busy")
+	}
+	if _, busy := trashBusy(cfg, trashPathFor(cfg, other)); busy {
+		t.Error("a file the worker is not touching must not be busy")
+	}
+	// A stale record (worker gone) blocks nothing.
+	st.Updated = time.Now().Add(-time.Hour)
+	data, _ = json.Marshal(st)
+	_ = os.WriteFile(runStatePath(), data, 0o644)
+	if _, busy := trashBusy(cfg, trashPathFor(cfg, cur)); busy {
+		t.Error("a stale run record must not block restores")
 	}
 }

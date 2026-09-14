@@ -1022,19 +1022,32 @@ func trashPathRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return req.Path, true
 }
 
+// trashBusy reports whether a running job is working on the file a trash
+// entry belongs to. The run lock cannot be used here: the service holds it
+// for the whole batch, which under systemd means always, and a Restore that
+// never works is no Restore. The only real conflict is the worker being
+// mid-encode or mid-replace on that same original, and run.json says which
+// file that is.
+func trashBusy(cfg *Config, trashPath string) (string, bool) {
+	st := LoadRunState()
+	if !st.Alive() || st.Current == "" {
+		return "", false
+	}
+	if trashPathFor(cfg, st.Current) == trashPath {
+		return st.Current, true
+	}
+	return "", false
+}
+
 func (s *server) handleTrashRestore(w http.ResponseWriter, r *http.Request) {
 	p, ok := trashPathRequest(w, r)
 	if !ok {
 		return
 	}
-	// Same rule as emptying: a running job may be mid-replace on the very
-	// file, so the lock has to be free.
-	release, err := acquireLock()
-	if err != nil {
-		httpErr(w, http.StatusConflict, "%v", err)
+	if cur, busy := trashBusy(s.cfg, p); busy {
+		httpErr(w, http.StatusConflict, "a run is working on %s right now; try again when it has moved on", filepath.Base(cur))
 		return
 	}
-	defer release()
 
 	orig, err := RestoreFromTrash(s.cfg, p)
 	if err != nil {
@@ -1049,12 +1062,10 @@ func (s *server) handleTrashDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	release, err := acquireLock()
-	if err != nil {
-		httpErr(w, http.StatusConflict, "%v", err)
+	if cur, busy := trashBusy(s.cfg, p); busy {
+		httpErr(w, http.StatusConflict, "a run is working on %s right now; try again when it has moved on", filepath.Base(cur))
 		return
 	}
-	defer release()
 
 	if err := DeleteFromTrash(s.cfg, p); err != nil {
 		httpErr(w, http.StatusBadRequest, "%v", err)
