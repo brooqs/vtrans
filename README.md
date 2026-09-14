@@ -48,9 +48,11 @@ a comment explaining what was measured, and a test that fails if it regresses.
 
 ## The interface
 
-`vtrans serve` puts everything on one page: live progress, the library as a
-card grid with search and filters, the queue, history, failures, the ignore
-list, the service log, and settings.
+`vtrans serve` puts everything on one page: live progress with a pause button
+(the running ffmpeg is frozen on the spot and the queue holds until resume),
+the library as a card grid with search and filters, the queue, history,
+failures, the ignore list, the trash with per-file restore, the service log,
+and settings.
 
 Artwork already beside your files (`folder.jpg`, `-thumb.jpg`, season posters)
 is used as-is, scaled and cached. Nothing is fetched from the network and

@@ -231,6 +231,8 @@ func runEncode(ctx context.Context, cfg *Config, j Job, tmp string, onProgress f
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
+	pause.Register(cmd.Process)
+	defer pause.Unregister()
 
 	go parseProgress(stdout, j.Info.Duration, onProgress)
 
@@ -406,7 +408,12 @@ func decodeCheck(ctx context.Context, path string, dur float64, mode string) err
 		cmd := exec.CommandContext(ctx, "ffmpeg", append([]string{"-v", "error", "-nostdin"}, args...)...)
 		var stderr strings.Builder
 		cmd.Stderr = &stderr
-		err := cmd.Run()
+		err := cmd.Start()
+		if err == nil {
+			pause.Register(cmd.Process)
+			err = cmd.Wait()
+			pause.Unregister()
+		}
 		// Judge the whole output and shorten only what goes into the message.
 		// Truncating first cuts the last line in half, and a half line matches no
 		// benign pattern - which is how 39 sound files were rejected over

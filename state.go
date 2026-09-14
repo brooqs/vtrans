@@ -22,7 +22,9 @@ type RunState struct {
 	Updated time.Time `json:"updated"`
 
 	// scan | encode | verify | commit | idle
-	Phase   string `json:"phase"`
+	Phase string `json:"phase"`
+	// Paused: the worker is frozen (ffmpeg stopped, or waiting between files).
+	Paused  bool   `json:"paused"`
 	Current string `json:"current"` // full path of the file being processed
 	Index   int    `json:"index"`   // position in the queue (1-based)
 	Total   int    `json:"total"`
@@ -119,6 +121,27 @@ func (r *RunReporter) SetPhase(phase string) {
 	r.mu.Lock()
 	r.st.Phase = phase
 	r.mu.Unlock()
+	r.flush(true)
+}
+
+// SetPaused records the pause state; the phase is kept so the interface can
+// say what was interrupted.
+func (r *RunReporter) SetPaused(on bool) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.st.Paused = on
+	r.mu.Unlock()
+	r.flush(true)
+}
+
+// Heartbeat refreshes the stamp without changing anything else. A paused
+// worker produces no progress, and the record must not go stale for that.
+func (r *RunReporter) Heartbeat() {
+	if r == nil {
+		return
+	}
 	r.flush(true)
 }
 

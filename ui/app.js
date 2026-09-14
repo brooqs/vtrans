@@ -113,6 +113,7 @@ window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 
 function idleTitle(st) {
   const sv = st.service || {};
+  if (st.pause_requested) return 'Paused';
   if (!sv.known) return 'Nothing in progress';
   if (sv.active === 'failed') return 'The service failed';
   if (sv.active === 'activating' && sv.sub === 'auto-restart') return 'Waiting for the next cycle';
@@ -123,6 +124,7 @@ function idleTitle(st) {
 
 function idleReason(st) {
   const sv = st.service || {};
+  if (st.pause_requested) return 'The next run will wait until you press Resume.';
   const q = st.queue.files
     ? `${st.queue.files} files are queued.`
     : 'The queue is empty.';
@@ -153,7 +155,39 @@ const PHASE_LABEL = {
   commit: 'committing',
   idle: 'idle',
   scan: 'scanning',
+  paused: 'paused',
 };
+
+// --- pause / resume ---
+//
+// One request file, two buttons (the current card and the idle card). A pause
+// pressed while nothing runs is honoured by the next run, so the button is
+// always live.
+function renderPause(st) {
+  const req = !!st.pause_requested;
+  const frozen = !!(st.running && st.run && st.run.paused);
+  for (const id of ['btn-pause', 'btn-pause-idle']) {
+    const b = $(id);
+    b.textContent = req ? 'Resume' : 'Pause';
+    b.title = req
+      ? (frozen ? 'ffmpeg is frozen; resume continues where it stopped' : 'a pause is requested; the next file will wait')
+      : 'freeze the running encode and hold the queue';
+  }
+}
+
+async function togglePause() {
+  const req = !!(lastState && lastState.pause_requested);
+  try {
+    await post(req ? '/api/resume' : '/api/pause');
+    toast(req ? 'resumed' : 'paused', 'ok');
+    tick();
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+$('btn-pause').addEventListener('click', togglePause);
+$('btn-pause-idle').addEventListener('click', togglePause);
+let lastState = null;
 
 let lastRunning = null;
 
@@ -197,6 +231,8 @@ async function tick() {
   }
 
   // current job
+  lastState = st;
+  renderPause(st);
   const run = st.run;
   if (st.running && run) {
     $('current-idle').hidden = true;
@@ -204,8 +240,13 @@ async function tick() {
 
     const ph = run.phase || 'encode';
     const pe = $('cur-phase');
-    pe.textContent = PHASE_LABEL[ph] || ph;
-    pe.className = 'phase ' + ph;
+    if (run.paused) {
+      pe.textContent = 'paused · ' + (PHASE_LABEL[ph] || ph);
+      pe.className = 'phase paused';
+    } else {
+      pe.textContent = PHASE_LABEL[ph] || ph;
+      pe.className = 'phase ' + ph;
+    }
 
     $('cur-pos').textContent = run.total > 1 ? `${run.index} / ${run.total}` : '';
     $('cur-name').textContent = (run.current || '').split('/').pop() || '—';

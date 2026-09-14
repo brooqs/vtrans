@@ -115,6 +115,8 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/config", s.handleConfigGet)
 	mux.HandleFunc("POST /api/config", s.handleConfigPost)
 	mux.HandleFunc("POST /api/trash/empty", s.handleTrashEmpty)
+	mux.HandleFunc("POST /api/pause", s.handlePause)
+	mux.HandleFunc("POST /api/resume", s.handleResume)
 	mux.HandleFunc("GET /api/trash", s.handleTrashList)
 	mux.HandleFunc("POST /api/trash/restore", s.handleTrashRestore)
 	mux.HandleFunc("POST /api/trash/delete", s.handleTrashDelete)
@@ -291,6 +293,9 @@ type stateResp struct {
 	Trash   trashStat `json:"trash"`
 	Notices []string  `json:"notices"`
 	Mode    string    `json:"mode"`
+	// PauseRequested is the standing request, whether or not a worker is
+	// there to honour it yet: a pause pressed while idle holds the next run.
+	PauseRequested bool `json:"pause_requested"`
 	// Service is what systemd says about the worker unit, so an empty status
 	// panel can explain itself.
 	Service ServiceState `json:"service"`
@@ -360,7 +365,8 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, stateResp{
 		Run: rs, Running: alive, Summary: sum, Queue: qs, Skipped: skipped,
 		Trash: s.trashStat(), Notices: notices, Mode: string(s.cfg.Mode),
-		Service: readServiceState(r.Context(), workerUnit),
+		PauseRequested: PauseRequested(),
+		Service:        readServiceState(r.Context(), workerUnit),
 	})
 }
 
@@ -990,6 +996,24 @@ func validateConfig(c *Config) error {
 		return fmt.Errorf("the rescan interval cannot be negative")
 	}
 	return nil
+}
+
+// --- pause ---
+
+func (s *server) handlePause(w http.ResponseWriter, r *http.Request) {
+	if err := RequestPause(); err != nil {
+		httpErr(w, http.StatusInternalServerError, "could not write the pause request: %v", err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "paused": true})
+}
+
+func (s *server) handleResume(w http.ResponseWriter, r *http.Request) {
+	if err := RequestResume(); err != nil {
+		httpErr(w, http.StatusInternalServerError, "could not remove the pause request: %v", err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "paused": false})
 }
 
 // --- trash ---

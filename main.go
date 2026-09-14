@@ -304,7 +304,11 @@ func cmdRun(ctx context.Context, cfg *Config, args []string) error {
 		defer rep.Close()
 	}
 
+	go pause.Watch(ctx, rep)
 	for i, c := range cands {
+		if err := pause.WaitIfPaused(ctx, rep); err != nil {
+			return err
+		}
 		if ctx.Err() != nil {
 			break
 		}
@@ -424,6 +428,7 @@ func cmdWatch(ctx context.Context, cfg *Config) error {
 	// In watch mode the queue is not known in advance; the total counts as 1 per file.
 	rep := NewRunReporter(1)
 	defer rep.Close()
+	go pause.Watch(ctx, rep)
 
 	errc := make(chan error, 1)
 	go func() { errc <- w.Run(ctx) }()
@@ -438,6 +443,9 @@ func cmdWatch(ctx context.Context, cfg *Config) error {
 			}
 			return err
 		case path := <-w.Queue():
+			if err := pause.WaitIfPaused(ctx, rep); err != nil {
+				return nil
+			}
 			handleWatched(ctx, cfg, w, rep, path)
 			rep.SetPhase("idle")
 		}
