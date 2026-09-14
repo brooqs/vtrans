@@ -24,7 +24,12 @@ func cmdSample(ctx context.Context, cfg *Config, args []string) error {
 		return err
 	}
 
+	// Spread around the defaults of the active backend: the two encoders'
+	// scales differ, and the NVENC sweet spot sits about 40 q lower.
 	qs := []int{110, 130, 150, 170, 190}
+	if cfg.ResolveBackend() == BackendNVENC {
+		qs = []int{70, 80, 90, 100, 110}
+	}
 	if len(args) > 1 {
 		qs = nil
 		for _, s := range strings.Split(args[1], ",") {
@@ -116,16 +121,16 @@ func buildSample(ctx context.Context, cfg *Config, src, dst string,
 				"-c:v", "ffv1", "-an", "-sn", "-y", seg,
 			}
 		} else {
-			args = []string{
-				"-hide_banner", "-loglevel", "error", "-nostdin",
-				"-hwaccel", "vaapi", "-hwaccel_device", cfg.RenderDevice,
-				"-hwaccel_output_format", "vaapi",
+			hw := cfg.HW()
+			args = []string{"-hide_banner", "-loglevel", "error", "-nostdin"}
+			args = append(args, hw.decodeArgs()...)
+			args = append(args,
 				"-ss", fmt.Sprintf("%.2f", off), "-t", fmt.Sprintf("%.2f", segLen),
 				"-i", src, "-map", "0:v:0",
-				"-vf", fmt.Sprintf("scale_vaapi=%d:%d", w, h),
-				"-c:v", "av1_vaapi", "-rc_mode", "CQP", "-q:v", strconv.Itoa(q),
-				"-an", "-sn", "-y", seg,
-			}
+				"-vf", hw.scaleFilter(w, h),
+			)
+			args = append(args, hw.codecArgs(0, q)...)
+			args = append(args, "-an", "-sn", "-y", seg)
 		}
 		cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 		var stderr strings.Builder

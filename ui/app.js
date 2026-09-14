@@ -569,6 +569,8 @@ function fillConfig(c) {
   $('c-trash').value = c.trash_dir || '';
   $('c-qmovie').value = c.q_movie;
   $('c-qtv').value = c.q_tv;
+  $('c-qmovie-nv').value = c.q_movie_nvenc || 90;
+  $('c-qtv-nv').value = c.q_tv_nvenc || 100;
   $('c-mw').value = c.movie_max_width;
   $('c-tw').value = c.tv_max_width;
   $('c-audio').value = c.audio_mode;
@@ -579,7 +581,10 @@ function fillConfig(c) {
   $('c-tvmark').value = (c.tv_path_markers || []).join(', ');
   $('c-verify').value = c.verify_mode;
   $('c-tol').value = c.duration_tolerance_sec;
+  $('c-backend').value = c.backend || '';
   $('c-render').value = c.render_device;
+  $('c-cuda').value = c.cuda_device || '0';
+  $('c-nvpreset').value = c.nvenc_preset || 'p6';
   $('c-streamloss').checked = !!c.skip_on_stream_loss;
   $('c-stable').value = c.stable_seconds;
   $('c-rescan').value = c.rescan_minutes;
@@ -593,6 +598,8 @@ function readConfig() {
     trash_dir: $('c-trash').value.trim(),
     q_movie: +$('c-qmovie').value,
     q_tv: +$('c-qtv').value,
+    q_movie_nvenc: +$('c-qmovie-nv').value,
+    q_tv_nvenc: +$('c-qtv-nv').value,
     movie_max_width: +$('c-mw').value,
     tv_max_width: +$('c-tw').value,
     audio_mode: $('c-audio').value,
@@ -603,7 +610,10 @@ function readConfig() {
     tv_path_markers: list($('c-tvmark').value),
     verify_mode: $('c-verify').value,
     duration_tolerance_sec: +$('c-tol').value,
+    backend: $('c-backend').value,
     render_device: $('c-render').value.trim(),
+    cuda_device: $('c-cuda').value.trim(),
+    nvenc_preset: $('c-nvpreset').value,
     skip_on_stream_loss: $('c-streamloss').checked,
     stable_seconds: +$('c-stable').value,
     rescan_minutes: +$('c-rescan').value,

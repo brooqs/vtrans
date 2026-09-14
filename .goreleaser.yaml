@@ -22,7 +22,8 @@ builds:
       # No cgo anywhere in the tree, and a static binary is what makes "copy it
       # and run it" true across distributions.
       - CGO_ENABLED=0
-    # Linux only, and deliberately so: vtrans drives VAAPI through /dev/dri.
+    # Linux only, and deliberately so: vtrans drives VAAPI through /dev/dri
+    # and NVENC through /dev/nvidiactl.
     # There is nothing for it to do on macOS or Windows, and shipping a binary
     # that cannot work is worse than shipping none.
     goos:
@@ -57,7 +58,7 @@ nfpms:
     maintainer: Davuthan Yaman <brooqs@gmail.com>
     description: |-
       AV1 hardware archiving for a video library, with a web interface.
-      Re-encodes over VAAPI, verifies every output before replacing an
+      Re-encodes over VAAPI or NVENC, verifies every output before replacing an
       original, and explains what it found.
     license: MIT
     formats:
@@ -148,5 +149,5 @@ release:
   footer: |-
     ---
 
-    Built on AMD RDNA 3.5 (Radeon 890M). Other VAAPI hardware should work but
-    has not been tested — reports are welcome.
+    Built on AMD RDNA 3.5 (Radeon 890M, VAAPI) and NVIDIA RTX 4060 (NVENC).
+    Other hardware should work but has not been tested — reports are welcome.

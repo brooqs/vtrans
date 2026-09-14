@@ -295,12 +295,22 @@
       <legend>Quality</legend>
       <div class="row">
         <label>
-          <span>Movie quality <small>higher = smaller file</small></span>
+          <span>Movie quality <small>vaapi · higher = smaller file</small></span>
           <input type="number" id="c-qmovie" min="1" max="255">
         </label>
         <label>
-          <span>TV quality</span>
+          <span>TV quality <small>vaapi</small></span>
           <input type="number" id="c-qtv" min="1" max="255">
+        </label>
+      </div>
+      <div class="row">
+        <label>
+          <span>Movie quality <small>nvenc · same scale, different encoder: 90 ≈ vaapi 130</small></span>
+          <input type="number" id="c-qmovie-nv" min="1" max="255">
+        </label>
+        <label>
+          <span>TV quality <small>nvenc</small></span>
+          <input type="number" id="c-qtv-nv" min="1" max="255">
         </label>
       </div>
       <div class="row">
@@ -372,9 +382,33 @@
       </div>
       <div class="row">
         <label>
-          <span>Render device</span>
+          <span>Backend</span>
+          <select id="c-backend">
+            <option value="">auto — nvenc if an NVIDIA driver is loaded, else vaapi</option>
+            <option value="vaapi">vaapi — AMD / Intel</option>
+            <option value="nvenc">nvenc — NVIDIA</option>
+          </select>
+        </label>
+        <label>
+          <span>Render device <small>vaapi</small></span>
           <input id="c-render" spellcheck="false">
         </label>
+      </div>
+      <div class="row">
+        <label>
+          <span>CUDA device <small>nvenc, card index</small></span>
+          <input id="c-cuda" spellcheck="false">
+        </label>
+        <label>
+          <span>NVENC preset <small>p1 fastest … p7 best</small></span>
+          <select id="c-nvpreset">
+            <option value="p1">p1</option><option value="p2">p2</option><option value="p3">p3</option>
+            <option value="p4">p4</option><option value="p5">p5</option><option value="p6">p6</option>
+            <option value="p7">p7</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
         <label class="check">
           <input type="checkbox" id="c-streamloss">
           <span>Skip files at risk of stream loss <small>recommended</small></span>

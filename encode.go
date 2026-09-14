@@ -53,6 +53,7 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 	// the CPU and the filter chain uploads the frames, so the encode still
 	// happens in hardware. See NeedsSoftwareDecode.
 	soft := NeedsSoftwareDecode(j.Info)
+	hw := cfg.HW()
 
 	args := []string{
 		"-hide_banner", "-loglevel", "error", "-nostdin",
@@ -60,14 +61,10 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 	}
 	if soft {
 		// No -hwaccel: the device is opened for the filter chain alone, so
-		// hwupload and scale_vaapi have somewhere to put the frames.
-		args = append(args, "-vaapi_device", cfg.RenderDevice)
+		// hwupload and the scaler have somewhere to put the frames.
+		args = append(args, hw.filterDeviceArgs()...)
 	} else {
-		args = append(args,
-			"-hwaccel", "vaapi",
-			"-hwaccel_device", cfg.RenderDevice,
-			"-hwaccel_output_format", "vaapi",
-		)
+		args = append(args, hw.decodeArgs()...)
 	}
 	args = append(args, "-i", j.Src)
 
@@ -91,9 +88,9 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 		// encoder accepts and uploaded before scaling.
 		pre := ""
 		if soft {
-			pre = "format=nv12,hwupload,"
+			pre = hw.uploadPrefix()
 		}
-		chains = append(chains, fmt.Sprintf("[0:%d]%sscale_vaapi=%d:%d[v%d]", s.Index, pre, w, h, i))
+		chains = append(chains, fmt.Sprintf("[0:%d]%s%s[v%d]", s.Index, pre, hw.scaleFilter(w, h), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(chains, ";"))
 
@@ -113,10 +110,7 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 
 	// video codecs
 	for i := range vids {
-		args = append(args,
-			fmt.Sprintf("-c:v:%d", i), "av1_vaapi",
-			fmt.Sprintf("-q:v:%d", i), strconv.Itoa(j.Quality),
-		)
+		args = append(args, hw.codecArgs(i, j.Quality)...)
 	}
 	// Cover images are copied verbatim.
 	//
@@ -130,7 +124,6 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 	for i := range pics {
 		args = append(args, fmt.Sprintf("-c:v:%d", len(vids)+i), "copy")
 	}
-	args = append(args, "-rc_mode", "CQP")
 
 	// audio
 	args = append(args, audioArgs(cfg, j.Info)...)

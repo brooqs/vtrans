@@ -178,7 +178,8 @@ func diagnoseFindings(cfg *Config, mi *MediaInfo) []Finding {
 	}
 
 	// Codecs the hardware decoder refuses. mpeg4 came up on 2026-08-12: vaapi
-	// initialisation fails and the file cannot be encoded at all.
+	// initialisation fails and the file cannot be encoded at all. The same
+	// mechanism covers NVDEC; which codecs it lacks is learned, not assumed.
 	if v, ok := mi.PrimaryVideo(); ok {
 		// Only reported once vtrans has actually met the limitation. Guessing
 		// from the codec name would be guessing about someone else's hardware.

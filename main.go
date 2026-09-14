@@ -25,7 +25,7 @@ var (
 	date    = "unknown"
 )
 
-const usage = `vtrans - VAAPI hardware-accelerated video archiving
+const usage = `vtrans - hardware-accelerated (VAAPI / NVENC) AV1 video archiving
 
   vtrans scan              Scan the library / refresh the index
   vtrans plan              Show what would happen (writes nothing)
@@ -104,15 +104,13 @@ func preflight(cfg *Config) error {
 			return fmt.Errorf("%s not found (sudo apt install ffmpeg)", bin)
 		}
 	}
-	f, err := os.OpenFile(cfg.RenderDevice, os.O_RDWR, 0)
-	if err != nil {
-		return fmt.Errorf("could not open %s: %w (are you in the render group?)", cfg.RenderDevice, err)
+	hw := cfg.HW()
+	if err := hw.checkDevice(); err != nil {
+		return err
 	}
-	_ = f.Close()
-
 	out, err := exec.Command("ffmpeg", "-hide_banner", "-encoders").Output()
-	if err != nil || !strings.Contains(string(out), "av1_vaapi") {
-		return fmt.Errorf("this ffmpeg has no av1_vaapi encoder")
+	if err != nil || !strings.Contains(string(out), hw.Encoder) {
+		return fmt.Errorf("this ffmpeg has no %s encoder (backend %s)", hw.Encoder, hw.Name)
 	}
 	return nil
 }
@@ -155,7 +153,7 @@ func cmdPlan(ctx context.Context, cfg *Config) error {
 	var totalSrc, totalEst int64
 
 	for _, c := range cands {
-		base := estimatedVideoMbps(c.Quality)
+		base := estimatedVideoMbps(cfg, c.Quality)
 		px := float64(c.TargetW * c.TargetH)
 		estVideo := base * (px / (1920 * 1080)) * 1e6 * c.Duration / 8
 		estAudio := estimatedAudio(cfg, c) * c.Duration / 8
@@ -206,21 +204,31 @@ func cmdPlan(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-// estimatedVideoMbps is the AV1 VCN bitrate estimate for 1920x1080 live action.
+// estimatedVideoMbps is the AV1 bitrate estimate for 1920x1080 live action on
+// the active backend.
 //
-// An exponential model fitted to values measured on this machine (District 9,
-// 4 scenes):
+// VAAPI: an exponential model fitted to values measured on the Radeon 890M
+// (District 9, 4 scenes):
 //
 //	q110 2.79 | q130 2.02 | q150 1.46 | q170 1.04 | q190 0.74 Mbps
 //
 // The ratio per 20 q steps comes out constant at ~0.718; the model matches the
 // measurements to within 2%.
 //
+// NVENC: fitted on the RTX 4060 (Hansel & Gretel, 60 s at 30 min, 1920x800
+// normalised to 1080p): the ratio per 20 q steps is ~0.70 and the curve sits
+// well below VAAPI's at the same q. The reference bitrate is set so the two
+// curves cross at the measured equivalence (NVENC q90 = VAAPI q130); it is
+// rougher than the VAAPI figure since it rests on one film.
+//
 // Live action is the reference: animation compresses about twice as well, so the
 // estimate makes animated files look larger - deliberately, to avoid overstating
 // the savings.
-func estimatedVideoMbps(q int) float64 {
-	const refQ, refMbps, ratioPer20 = 110.0, 2.79, 0.718
+func estimatedVideoMbps(cfg *Config, q int) float64 {
+	refQ, refMbps, ratioPer20 := 110.0, 2.79, 0.718
+	if cfg.ResolveBackend() == BackendNVENC {
+		refQ, refMbps, ratioPer20 = 110.0, 1.30, 0.70
+	}
 	return refMbps * math.Pow(ratioPer20, (float64(q)-refQ)/20)
 }
 

@@ -28,9 +28,17 @@ type Config struct {
 	// Space is only reclaimed once the trash is emptied - a deliberate safety tradeoff.
 	TrashDir string `json:"trash_dir"`
 
-	// AV1 quality (global_quality, 0-255). Higher value = smaller file.
+	// AV1 quality, 1-255, higher value = smaller file. The number is the AV1
+	// quantiser index on both backends, but the encoders do not agree on what
+	// it means: measured on 2026-09-14, NVENC (RTX 4060) at q90 produces the
+	// same VMAF as VAAPI (Radeon 890M) at q130-150 while using 10-15% fewer
+	// bits. A single value cannot serve both cards, so each has its own pair
+	// and QualityFor picks by backend. See backend.go for the measurement.
 	QMovie int `json:"q_movie"`
 	QTV    int `json:"q_tv"`
+	// The same two settings for NVENC.
+	QMovieNvenc int `json:"q_movie_nvenc"`
+	QTVNvenc    int `json:"q_tv_nvenc"`
 
 	// TV shows are scaled down to this width (aspect ratio preserved). 0 = no downscale.
 	TVMaxWidth int `json:"tv_max_width"`
@@ -50,7 +58,15 @@ type Config struct {
 	// (Replacing the original is pointless without a real gain.)
 	MinSavingRatio float64 `json:"min_saving_ratio"`
 
+	// "vaapi" (AMD, Intel), "nvenc" (NVIDIA) or empty for auto-detection.
+	Backend Backend `json:"backend"`
+	// VAAPI: the DRM render node.
 	RenderDevice string `json:"render_device"`
+	// NVENC: the CUDA device index ("0" for the first card).
+	CudaDevice string `json:"cuda_device"`
+	// NVENC: p1 (fastest) to p7 (best). AV1 on Ada is fast enough that p6
+	// costs little; p7 is measurably slower for very little gain.
+	NvencPreset string `json:"nvenc_preset"`
 
 	// Skip the file entirely if any stream cannot be copied (e.g. codec_name=unknown
 	// subtitles). Prevents silent stream loss in replace mode; set false to drop the
@@ -80,6 +96,8 @@ func DefaultConfig() *Config {
 		TrashDir:             filepath.Join(home, "videos", ".vtrans-trash"),
 		QMovie:               130,
 		QTV:                  150,
+		QMovieNvenc:          90,
+		QTVNvenc:             100,
 		TVMaxWidth:           1280,
 		MovieMaxWidth:        0,
 		AudioMode:            "opus",
@@ -88,6 +106,8 @@ func DefaultConfig() *Config {
 		MinBitrateMbps:       1.5,
 		MinSavingRatio:       0.25,
 		RenderDevice:         "/dev/dri/renderD128",
+		CudaDevice:           "0",
+		NvencPreset:          "p6",
 		SkipOnStreamLoss:     true,
 		VerifyMode:           "sample",
 		DurationToleranceSec: 2.0,
@@ -156,12 +176,32 @@ func (c *Config) IsTV(path string) bool {
 	return false
 }
 
-// QualityFor returns the q value to apply to a file.
+// QualityFor returns the q value to apply to a file on the active backend.
+//
+// A configuration written before the NVENC fields existed has them at zero;
+// falling back to the VAAPI value there would silently encode at far lower
+// quality (see the Config comment), so the NVENC defaults are used instead.
 func (c *Config) QualityFor(path string) int {
+	q := c.qualityPair()
 	if c.IsTV(path) {
-		return c.QTV
+		return q[1]
 	}
-	return c.QMovie
+	return q[0]
+}
+
+func (c *Config) qualityPair() [2]int {
+	if c.ResolveBackend() == BackendNVENC {
+		def := DefaultConfig()
+		movie, tv := c.QMovieNvenc, c.QTVNvenc
+		if movie <= 0 {
+			movie = def.QMovieNvenc
+		}
+		if tv <= 0 {
+			tv = def.QTVNvenc
+		}
+		return [2]int{movie, tv}
+	}
+	return [2]int{c.QMovie, c.QTV}
 }
 
 // MaxWidthFor returns the target width cap (0 = unlimited).

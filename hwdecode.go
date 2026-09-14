@@ -112,12 +112,16 @@ func markSoftwareOnly(codec string) {
 // hwInitFailure recognises ffmpeg giving up on hardware decode.
 //
 // These are the messages seen when the GPU has no decoder for the input: the
-// first is ffmpeg refusing the profile, the second is the hwaccel setup itself
-// failing, and the third is the filter chain being handed software frames it
-// expected on the GPU. Any of them means the same thing.
+// first two are ffmpeg refusing the profile or the hwaccel setup itself
+// failing (one spelling per backend), and the last is the filter chain being
+// handed software frames it expected on the GPU. Any of them means the same
+// thing. The last one is also how NVDEC says no: -hwaccel cuda does not fail
+// for a codec it lacks, ffmpeg quietly decodes in software and scale_cuda is
+// then given frames it cannot take.
 func hwInitFailure(stderr string) bool {
 	for _, sig := range []string{
 		"Failed setup for format vaapi",
+		"Failed setup for format cuda",
 		"hwaccel initialisation returned error",
 		"No support for codec",
 		"Impossible to convert between the formats supported by the filter",

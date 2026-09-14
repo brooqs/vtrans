@@ -482,7 +482,7 @@ func (s *server) handleQueue(w http.ResponseWriter, r *http.Request) {
 
 // estimateOutSize is the single-file form of the plan command's estimate model.
 func estimateOutSize(cfg *Config, c Candidate) int64 {
-	base := estimatedVideoMbps(c.Quality)
+	base := estimatedVideoMbps(cfg, c.Quality)
 	px := float64(c.TargetW * c.TargetH)
 	estVideo := base * (px / (1920 * 1080)) * 1e6 * c.Duration / 8
 	estAudio := estimatedAudio(cfg, c) * c.Duration / 8
@@ -923,7 +923,8 @@ func validateConfig(c *Config) error {
 	for _, q := range []struct {
 		name string
 		v    int
-	}{{"movie quality", c.QMovie}, {"tv quality", c.QTV}} {
+	}{{"movie quality", c.QMovie}, {"tv quality", c.QTV},
+		{"nvenc movie quality", c.QMovieNvenc}, {"nvenc tv quality", c.QTVNvenc}} {
 		if q.v < 1 || q.v > 255 {
 			return fmt.Errorf("%s must be between 1 and 255 (given: %d)", q.name, q.v)
 		}
@@ -945,11 +946,31 @@ func validateConfig(c *Config) error {
 	if c.MinSavingRatio < 0 || c.MinSavingRatio >= 1 {
 		return fmt.Errorf("the minimum saving ratio must be between 0 and 1")
 	}
-	if c.RenderDevice == "" {
-		return fmt.Errorf("the render device cannot be empty")
+	switch c.Backend {
+	case BackendAuto, BackendVAAPI, BackendNVENC:
+	default:
+		return fmt.Errorf("backend must be 'vaapi', 'nvenc' or empty for auto-detection")
 	}
-	if _, err := os.Stat(c.RenderDevice); err != nil {
-		return fmt.Errorf("render device not found: %s", c.RenderDevice)
+	switch c.ResolveBackend() {
+	case BackendNVENC:
+		if _, err := os.Stat(nvidiaControlDevice); err != nil {
+			return fmt.Errorf("NVIDIA driver not loaded: %s not found", nvidiaControlDevice)
+		}
+		if c.CudaDevice == "" {
+			return fmt.Errorf("the cuda device cannot be empty (use 0 for the first card)")
+		}
+		switch c.NvencPreset {
+		case "", "p1", "p2", "p3", "p4", "p5", "p6", "p7":
+		default:
+			return fmt.Errorf("the nvenc preset must be p1..p7")
+		}
+	default:
+		if c.RenderDevice == "" {
+			return fmt.Errorf("the render device cannot be empty")
+		}
+		if _, err := os.Stat(c.RenderDevice); err != nil {
+			return fmt.Errorf("render device not found: %s", c.RenderDevice)
+		}
 	}
 	switch c.VerifyMode {
 	case "sample", "full":

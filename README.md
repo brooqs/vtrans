@@ -57,19 +57,43 @@ nothing is written into your library.
 
 ## Requirements
 
-- **Linux** with a **VAAPI** device (`/dev/dri/renderD128`) that can encode AV1.
-  Check with `vainfo`: you want `VAProfileAV1Profile0: VAEntrypointEncSlice` in
-  the output. In practice that means AMD RDNA3 or newer, Intel Arc, or an Intel
-  iGPU from Meteor Lake onwards.
-- **ffmpeg 7+** with VAAPI support, on `PATH`.
+- **Linux** and a GPU with an AV1 encoder, driven through one of two backends:
+  - **VAAPI** (`/dev/dri/renderD128`): AMD RDNA3 or newer, Intel Arc, or an
+    Intel iGPU from Meteor Lake onwards. Check with `vainfo`: you want
+    `VAProfileAV1Profile0: VAEntrypointEncSlice` in the output.
+  - **NVENC** (`/dev/nvidiactl`): NVIDIA Ada (RTX 40 series) or newer, with the
+    proprietary driver. Check with `ffmpeg -encoders | grep av1_nvenc`.
+- **ffmpeg 7+** built with VAAPI and/or NVENC support, on `PATH`.
 - Go 1.25+ to build.
 
-Developed and measured on an **AMD Radeon 890M** (Strix, RDNA 3.5) with Mesa
-26.0. Other VAAPI hardware should work but has not been tried — reports
-welcome.
+The backend is auto-detected: NVENC when an NVIDIA driver is loaded, VAAPI
+otherwise. Set `"backend": "vaapi"` or `"nvenc"` in the configuration to force
+one, for instance on a machine with both an iGPU and a discrete card.
 
-**NVIDIA is not supported.** vtrans speaks VAAPI only. NVENC support would be a
-welcome contribution; the hardware-specific code is confined to six files.
+Developed and measured on an **AMD Radeon 890M** (Strix, RDNA 3.5) with Mesa
+26.0 and an **NVIDIA RTX 4060** with driver 615.
+
+### Quality is per backend
+
+The quality number is the AV1 quantiser index (1–255) on both cards, but the
+two encoders do not agree on what it means. Measured on 60 s clips, VMAF
+against the source:
+
+| Clip | VAAPI | NVENC at the same q | NVENC match |
+|---|---|---|---|
+| Hansel & Gretel, 1080p | q130: 1938 kbps, VMAF 94.0 | q130: 805 kbps, VMAF 85.0 | **q90**: 1663 kbps, VMAF 94.0 |
+| Star Trek SNW, → 720p | q150: 543 kbps, VMAF 89.9 | | **q90**: 460 kbps, VMAF 89.7 |
+
+So the configuration carries `q_movie` / `q_tv` for VAAPI and
+`q_movie_nvenc` / `q_tv_nvenc` for NVENC (defaults 130/150 and 90/100), and
+the active backend decides which pair is used. Carrying a VAAPI value over to
+NVENC unchanged would cut quality across the whole library without a word.
+`vtrans sample` sweeps around the right defaults for whichever card is active;
+pick by eye from there.
+
+Decode support is learned the same way on both: a codec the GPU refuses is
+noted down and decoded on the CPU from then on, while the encode stays in
+hardware.
 
 ## Install
 

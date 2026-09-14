@@ -33,6 +33,11 @@ User=CHANGEME
 Group=CHANGEME
 WorkingDirectory=/home/CHANGEME
 
+# The scan in ExecStartPre walks the whole library; over NFS that takes
+# longer than the 90 s default start timeout (measured 2026-09-14: 1637 files,
+# 52 s warm, over 90 s cold), and the unit was failing with "start-pre
+# operation timed out" before ever encoding anything.
+TimeoutStartSec=infinity
 KillSignal=SIGTERM
 TimeoutStopSec=5min
 
