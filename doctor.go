@@ -204,8 +204,8 @@ func diagnoseFindings(cfg *Config, mi *MediaInfo) []Finding {
 	if pics := mi.AttachedPics(); len(pics) > 0 {
 		out = append(out, Finding{
 			Kind: "cover_art", Severity: SevInfo,
-			Detail: fmt.Sprintf("%d cover image(s) present. They are copied through, but Matroska cannot "+
-				"carry the attached_pic flag, so it does not survive.", len(pics)),
+			Detail: fmt.Sprintf("%d cover image(s) present. They are carried over as Matroska "+
+				"attachments (cover.png / cover.jpg), which keeps the cover flag.", len(pics)),
 			Streams: streamIndexes(pics),
 		})
 	}

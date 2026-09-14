@@ -23,6 +23,9 @@ type Job struct {
 	Quality  int
 	IsTV     bool
 	DestPath string // final output path
+	// Cover images extracted from the source, attached to the output. Filled
+	// in by Encode; see cover.go for why they do not travel as streams.
+	Covers []CoverFile
 }
 
 type Result struct {
@@ -69,7 +72,6 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 	args = append(args, "-i", j.Src)
 
 	vids := j.Info.VideoStreams()
-	pics := j.Info.AttachedPics()
 
 	// scaling chains
 	//
@@ -97,9 +99,6 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 	for i := range vids {
 		args = append(args, "-map", fmt.Sprintf("[v%d]", i))
 	}
-	for _, s := range pics {
-		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
-	}
 	args = append(args, "-map", "0:a?")
 	// Subtitles are mapped one by one so an unwritable stream (codec_name=unknown)
 	// does not take the whole job down. Verify catches whichever were dropped.
@@ -112,18 +111,8 @@ func buildArgs(cfg *Config, j Job, outPath string) []string {
 	for i := range vids {
 		args = append(args, hw.codecArgs(i, j.Quality)...)
 	}
-	// Cover images are copied verbatim.
-	//
-	// The attached_pic flag cannot be preserved in the output: the Matroska muxer
-	// does not write this disposition and -disposition cannot force it (works in
-	// mp4, not in mkv). The only way to get the flag back would be to extract the
-	// cover to a file and re-add it with -attach. That is unnecessary: the image
-	// data survives the copy, and detectCovers recognises it by being a single
-	// frame rather than by the flag. So our own output is classified correctly on
-	// the next run too.
-	for i := range pics {
-		args = append(args, fmt.Sprintf("-c:v:%d", len(vids)+i), "copy")
-	}
+	// Cover images go in as attachments, never as mapped streams: cover.go.
+	args = append(args, attachArgs(j.Info, j.Covers)...)
 
 	// audio
 	args = append(args, audioArgs(cfg, j.Info)...)
@@ -190,6 +179,15 @@ func Encode(ctx context.Context, cfg *Config, j Job, onProgress func(Progress)) 
 	}
 	tmp := filepath.Join(dir, ".vtrans-"+filepath.Base(j.DestPath)+".part.mkv")
 	_ = os.Remove(tmp)
+
+	if len(j.Info.AttachedPics()) > 0 {
+		coverDir, err := os.MkdirTemp("", "vtrans-cover-")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(coverDir)
+		j.Covers = extractCovers(ctx, j.Src, j.Info, coverDir)
+	}
 
 	out, err := runEncode(ctx, cfg, j, tmp, onProgress)
 	if err == nil {

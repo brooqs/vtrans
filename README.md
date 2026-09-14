@@ -31,7 +31,8 @@ a comment explaining what was measured, and a test that fails if it regresses.
 ## What it does
 
 - **Encodes** every video stream, keeps every audio and subtitle track, keeps
-  cover art and chapters. Dual-language files stay dual-language.
+  cover art (as a proper Matroska attachment, flag intact) and chapters.
+  Dual-language files stay dual-language.
 - **Verifies** before replacing anything: duration within tolerance, stream
   counts match, and the output actually decodes. Only then is the original
   moved to the trash directory.
