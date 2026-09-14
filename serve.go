@@ -115,6 +115,9 @@ func (s *server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/config", s.handleConfigGet)
 	mux.HandleFunc("POST /api/config", s.handleConfigPost)
 	mux.HandleFunc("POST /api/trash/empty", s.handleTrashEmpty)
+	mux.HandleFunc("GET /api/trash", s.handleTrashList)
+	mux.HandleFunc("POST /api/trash/restore", s.handleTrashRestore)
+	mux.HandleFunc("POST /api/trash/delete", s.handleTrashDelete)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/ignored", s.handleIgnored)
 	mux.HandleFunc("POST /api/ignore", s.handleIgnore)
@@ -990,6 +993,75 @@ func validateConfig(c *Config) error {
 }
 
 // --- trash ---
+
+func (s *server) handleTrashList(w http.ResponseWriter, r *http.Request) {
+	entries, err := ListTrash(s.cfg)
+	if err != nil {
+		httpErr(w, http.StatusInternalServerError, "could not read the trash: %v", err)
+		return
+	}
+	if entries == nil {
+		entries = []TrashEntry{}
+	}
+	var total int64
+	for _, e := range entries {
+		total += e.Size
+	}
+	writeJSON(w, map[string]any{"dir": s.cfg.TrashDir, "entries": entries, "total": total})
+}
+
+// trashPathRequest reads the one field both single-file trash actions take.
+func trashPathRequest(w http.ResponseWriter, r *http.Request) (string, bool) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Path == "" {
+		httpErr(w, http.StatusBadRequest, "a trash file path is required")
+		return "", false
+	}
+	return req.Path, true
+}
+
+func (s *server) handleTrashRestore(w http.ResponseWriter, r *http.Request) {
+	p, ok := trashPathRequest(w, r)
+	if !ok {
+		return
+	}
+	// Same rule as emptying: a running job may be mid-replace on the very
+	// file, so the lock has to be free.
+	release, err := acquireLock()
+	if err != nil {
+		httpErr(w, http.StatusConflict, "%v", err)
+		return
+	}
+	defer release()
+
+	orig, err := RestoreFromTrash(s.cfg, p)
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, "%v", err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "original": orig})
+}
+
+func (s *server) handleTrashDelete(w http.ResponseWriter, r *http.Request) {
+	p, ok := trashPathRequest(w, r)
+	if !ok {
+		return
+	}
+	release, err := acquireLock()
+	if err != nil {
+		httpErr(w, http.StatusConflict, "%v", err)
+		return
+	}
+	defer release()
+
+	if err := DeleteFromTrash(s.cfg, p); err != nil {
+		httpErr(w, http.StatusBadRequest, "%v", err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
 
 func (s *server) handleTrashEmpty(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.TrashDir == "" {

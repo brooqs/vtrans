@@ -32,6 +32,7 @@
   <button class="tab" data-tab="history" role="tab">History</button>
   <button class="tab" data-tab="failures" role="tab">Failures <span class="badge warn" id="badge-failed"></span></button>
   <button class="tab" data-tab="ignored" role="tab">Ignored <span class="badge" id="badge-ignored"></span></button>
+  <button class="tab" data-tab="trash" role="tab">Trash <span class="badge" id="badge-trash"></span></button>
   <button class="tab" data-tab="doctor" role="tab">Doctor <span class="badge warn" id="badge-doctor"></span></button>
   <button class="tab" data-tab="logs" role="tab">Logs</button>
   <button class="tab" data-tab="settings" role="tab">Settings</button>
@@ -204,6 +205,23 @@
       queue.
     </p>
     <div class="list" id="i-list"></div>
+  </div>
+</section>
+
+<!-- TRASH -->
+<section class="panel" id="panel-trash">
+  <div class="card">
+    <div class="card-head">
+      <h3>Trash <span class="muted" id="t-total"></span></h3>
+      <button class="btn danger" id="btn-trash-empty">Empty trash</button>
+    </div>
+    <p class="muted">
+      Replaced originals wait here until you empty the trash, so replace mode
+      can be undone one file at a time. Restore puts the original back where it
+      was, deletes the AV1 file that took its place, and adds the file to the
+      ignore list so it is not encoded again; un-ignore it when you want that.
+    </p>
+    <div class="list" id="t-list"></div>
   </div>
 </section>
 

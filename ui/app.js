@@ -258,6 +258,7 @@ async function tick() {
   $('badge-ignored').textContent = s.ignored || '';
 
   $('btn-trash').disabled = !st.trash.dir || !st.trash.files;
+  $('badge-trash').textContent = st.trash.files || '';
 
   // The queue and history go stale the moment a run ends; refresh the open tab.
   if (lastRunning !== null && lastRunning !== st.running) {
@@ -544,6 +545,81 @@ $('btn-clear-failed').addEventListener('click', async () => {
 
 // --- trash ---
 
+async function loadTrash() {
+  let r;
+  try {
+    r = await api('/api/trash');
+  } catch (e) {
+    toast('could not read the trash: ' + e.message, 'err');
+    return;
+  }
+  const box = $('t-list');
+  box.textContent = '';
+  const n = r.entries.length;
+  $('badge-trash').textContent = n || '';
+  $('t-total').textContent = n ? `${n} files · ${human(r.total)}` : '';
+  $('btn-trash-empty').disabled = !n;
+
+  if (!r.dir) {
+    box.appendChild(el('p', 'empty', 'the trash is off: originals are deleted outright'));
+    return;
+  }
+  if (!n) {
+    box.appendChild(el('p', 'empty', 'the trash is empty'));
+    return;
+  }
+
+  r.entries.forEach((t) => {
+    const item = el('div', 'item');
+    const main = el('div', 'item-main');
+    const nm = el('div', 'item-name', t.name);
+    nm.title = t.path;
+    main.appendChild(nm);
+    main.appendChild(el('div', 'item-reason', t.original || 'origin unknown'));
+    const meta = [when(t.at), `original ${human(t.size)}`];
+    meta.push(t.output ? `AV1 ${human(t.output_size)} in place` : 'no AV1 output found');
+    main.appendChild(el('div', 'item-date', meta.join('  ·  ')));
+    item.appendChild(main);
+
+    const acts = el('div', 'item-acts');
+    const restore = el('button', 'btn ghost sm', 'Restore');
+    restore.disabled = !t.original;
+    restore.addEventListener('click', async () => {
+      const what = t.output ? `The AV1 file (${human(t.output_size)}) will be deleted and the original put back.` : 'The original will be put back.';
+      if (!confirm(`Restore ${t.name}?\n${what}`)) return;
+      restore.disabled = true;
+      try {
+        await post('/api/trash/restore', { path: t.path });
+        toast('original restored and added to the ignore list', 'ok');
+        loadTrash();
+        if (loaded.has('ignored')) loadIgnored();
+      } catch (e) {
+        toast(e.message, 'err');
+        restore.disabled = false;
+      }
+    });
+    const del = el('button', 'btn ghost sm', 'Delete');
+    del.addEventListener('click', async () => {
+      if (!confirm(`Delete ${t.name} from the trash permanently?`)) return;
+      del.disabled = true;
+      try {
+        await post('/api/trash/delete', { path: t.path });
+        toast('deleted', 'ok');
+        loadTrash();
+      } catch (e) {
+        toast(e.message, 'err');
+        del.disabled = false;
+      }
+    });
+    acts.append(restore, del);
+    item.appendChild(acts);
+    box.appendChild(item);
+  });
+}
+loaders.trash = loadTrash;
+
+$('btn-trash-empty').addEventListener('click', () => $('btn-trash').click());
+
 $('btn-trash').addEventListener('click', async () => {
   if (!confirm('The trash will be deleted permanently. Replaced originals cannot be recovered. Continue?')) return;
   const btn = $('btn-trash');
@@ -555,6 +631,7 @@ $('btn-trash').addEventListener('click', async () => {
     toast(e.message, 'err');
   }
   tick();
+  if (loaded.has('trash')) loadTrash();
 });
 
 // --- settings ---
